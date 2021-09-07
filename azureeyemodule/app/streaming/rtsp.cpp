@@ -51,6 +51,9 @@ typedef struct {
 
     /** The factory that creates the GStreamer pipeline for this stream. */
     GstRTSPMediaFactory *factory;
+
+    /** The handle for the appsrc's need-data signal. */
+    guint appsrc_need_data_signal_handle;
 } StreamParameters;
 
 /** Parameters that we use whenever a new client attaches to the H.264 URI. */
@@ -104,67 +107,72 @@ const int DEFAULT_FPS = 30;
 
 /** Struct to contain the parameters for the raw UDP stream. Read by a callback function. */
 static StreamParameters raw_udp_context {
-    .enabled        = true,
-    .resolution     = Resolution::NATIVE,
-    .fps            = DEFAULT_FPS,
-    .stream_type    = StreamType::RAW,
-    .name           = rtsp_raw_udp_source_name,
-    .timestamp      = 0,
-    .uri            = "/raw",
-    .server         = nullptr,
-    .factory        = nullptr,
+    .enabled                            = true,
+    .resolution                         = Resolution::NATIVE,
+    .fps                                = DEFAULT_FPS,
+    .stream_type                        = StreamType::RAW,
+    .name                               = rtsp_raw_udp_source_name,
+    .timestamp                          = 0,
+    .uri                                = "/raw",
+    .server                             = nullptr,
+    .factory                            = nullptr,
+    .appsrc_need_data_signal_handle     = 0,
 };
 
 /** Struct to contain the parameters for the raw TCP stream. Read by a callback function. */
 static StreamParameters raw_tcp_context {
-    .enabled        = true,
-    .resolution     = Resolution::NATIVE,
-    .fps            = DEFAULT_FPS,
-    .stream_type    = StreamType::RAW,
-    .name           = rtsp_raw_tcp_source_name,
-    .timestamp      = 0,
-    .uri            = "/rawTCP",
-    .server         = nullptr,
-    .factory        = nullptr,
+    .enabled                            = true,
+    .resolution                         = Resolution::NATIVE,
+    .fps                                = DEFAULT_FPS,
+    .stream_type                        = StreamType::RAW,
+    .name                               = rtsp_raw_tcp_source_name,
+    .timestamp                          = 0,
+    .uri                                = "/rawTCP",
+    .server                             = nullptr,
+    .factory                            = nullptr,
+    .appsrc_need_data_signal_handle     = 0,
 };
 
 /** Struct to contain the parameters for the result UDP stream. Read by a callback function. */
 static StreamParameters result_udp_context {
-    .enabled        = true,
-    .resolution     = Resolution::NATIVE,
-    .fps            = DEFAULT_FPS,
-    .stream_type    = StreamType::RESULT,
-    .name           = rtsp_result_udp_source_name,
-    .timestamp      = 0,
-    .uri            = "/result",
-    .server         = nullptr,
-    .factory        = nullptr,
+    .enabled                            = true,
+    .resolution                         = Resolution::NATIVE,
+    .fps                                = DEFAULT_FPS,
+    .stream_type                        = StreamType::RESULT,
+    .name                               = rtsp_result_udp_source_name,
+    .timestamp                          = 0,
+    .uri                                = "/result",
+    .server                             = nullptr,
+    .factory                            = nullptr,
+    .appsrc_need_data_signal_handle     = 0,
 };
 
 /** Struct to contain the parameters for the result TCP stream. Read by a callback function. */
 static StreamParameters result_tcp_context {
-    .enabled        = true,
-    .resolution     = Resolution::NATIVE,
-    .fps            = DEFAULT_FPS,
-    .stream_type    = StreamType::RESULT,
-    .name           = rtsp_result_tcp_source_name,
-    .timestamp      = 0,
-    .uri            = "/resultTCP",
-    .server         = nullptr,
-    .factory        = nullptr,
+    .enabled                            = true,
+    .resolution                         = Resolution::NATIVE,
+    .fps                                = DEFAULT_FPS,
+    .stream_type                        = StreamType::RESULT,
+    .name                               = rtsp_result_tcp_source_name,
+    .timestamp                          = 0,
+    .uri                                = "/resultTCP",
+    .server                             = nullptr,
+    .factory                            = nullptr,
+    .appsrc_need_data_signal_handle     = 0,
 };
 
 /** Struct to contain the parameters for the H.264 stream. Read by a callback function. */
 static StreamParameters h264_context {
-    .enabled        = true,
-    .resolution     = Resolution::NATIVE,
-    .fps            = DEFAULT_FPS,
-    .stream_type    = StreamType::H264_RAW,
-    .name           = rtsp_h264_source_name,
-    .timestamp      = 0,
-    .uri            = "/h264raw",
-    .server         = nullptr,
-    .factory        = nullptr,
+    .enabled                            = true,
+    .resolution                         = Resolution::NATIVE,
+    .fps                                = DEFAULT_FPS,
+    .stream_type                        = StreamType::H264_RAW,
+    .name                               = rtsp_h264_source_name,
+    .timestamp                          = 0,
+    .uri                                = "/h264raw",
+    .server                             = nullptr,
+    .factory                            = nullptr,
+    .appsrc_need_data_signal_handle     = 0,
 };
 
 /** The maximum number of frames we keep in memory for each queue before we start overwriting old ones. */
@@ -371,7 +379,8 @@ static void configure_stream(GstRTSPMediaFactory *factory, GstRTSPMedia *media, 
     g_object_set_data_full(G_OBJECT(media_element), "extra-data", new_context, (GDestroyNotify)g_free);
 
     // We call this callback whenever we need a new buffer to feed out.
-    g_signal_connect(appsrc, "need-data", (GCallback)need_data_callback, new_context);
+    params->appsrc_need_data_signal_handle = g_signal_connect(appsrc, "need-data", (GCallback)need_data_callback, new_context);
+    new_context->appsrc_need_data_signal_handle = params->appsrc_need_data_signal_handle;
 
     // Clean up after ourselves
     gst_object_unref(appsrc);
@@ -420,7 +429,7 @@ static void configure_stream_h264(GstRTSPMediaFactory *factory, GstRTSPMedia *me
 
     // Get the appsrc for this factory and hook up its need-data and enough-data callbacks.
     GstElement *appsrc = gst_bin_get_by_name_recurse_up(GST_BIN(h264_pipeline_stub), params->name.c_str());
-    g_signal_connect(appsrc, "need-data", (GCallback)need_data_callback_h264, contexts[0]);
+    params->appsrc_need_data_signal_handle = g_signal_connect(appsrc, "need-data", (GCallback)need_data_callback_h264, contexts[0]);
     g_signal_connect(appsrc, "enough-data", (GCallback)enough_data_callback_h264, contexts[1]);
 }
 
@@ -703,6 +712,13 @@ static void disconnect_h264_pipeline()
         return;
     }
 
+    // Disconnect the need-data signal because otherwise it will turn h264_pipeline_go back on (and we
+    // are about to turn it off)
+    g_signal_handler_disconnect(appsrc, h264_context.appsrc_need_data_signal_handle);
+
+    // Don't allow any more frames until we reconnect
+    h264_pipeline_go = false;
+
     // Remove the pipeline completely
     gst_element_set_state(h264_pipeline_stub, GST_STATE_NULL);
     gst_object_unref(h264_pipeline_stub);
@@ -759,9 +775,6 @@ void update_data_h264(const H264 &frame)
     if (current_connections == nullptr) // when a GList is empty, it is nullptr
     {
         util::log_info("No clients connected. Disconnecting the H.264 pipeline.");
-
-        // There are no clients.
-        h264_pipeline_go = false;
 
         // Now disconnect the pipeline.
         disconnect_h264_pipeline();
